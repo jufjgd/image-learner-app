@@ -1,0 +1,134 @@
+<!-- ... 您的HTML头部和body部分保持不变 ... -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const apiKeyInput = document.getElementById('api-key-input');
+            const saveApiKeyButton = document.getElementById('save-api-key');
+            const apiKeyStatus = document.getElementById('api-key-status');
+            const imageUpload = document.getElementById('image-upload');
+            const imagePreview = document.getElementById('image-preview');
+            const analyzeButton = document.getElementById('analyze-button');
+            const loader = document.getElementById('loader');
+            const errorMessage = document.getElementById('error-message');
+            const wordCardsContainer = document.getElementById('word-cards');
+            const uploadPrompt = document.getElementById('upload-prompt');
+
+            // 注意：API密钥输入框现在只是为了方便本地测试，线上环境将不再使用它。
+            // 我们保留UI，但实际逻辑已改变。
+            apiKeyInput.parentElement.parentElement.style.display = 'none'; // 直接隐藏API输入模块
+
+
+            let imageBase64 = '';
+
+            imageUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        imageBase64 = e.target.result;
+                        imagePreview.src = imageBase64;
+                        imagePreview.classList.remove('hidden');
+                        analyzeButton.disabled = false;
+                        uploadPrompt.classList.add('hidden');
+                        clearResults();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            analyzeButton.addEventListener('click', () => {
+                if (!imageBase64) {
+                    displayError('错误：请先选择一张图片。');
+                    return;
+                }
+                analyzeImage(imageBase64);
+            });
+            
+            async function analyzeImage(imageDataUrl) {
+                clearResults();
+                loader.classList.remove('hidden');
+
+                // 新的API端点，指向我们在Vercel上部署的无服务器函数
+                const apiUrl = '/api/proxy';
+                
+                const promptText = `请严格按照JSON格式识别图片中的主要物体。返回一个JSON数组，数组中每个对象代表一个物品，并包含'word' (英文单词), 'phonetic' (IPA音标), 'translation' (中文翻译), 和 'sentence' (英文例句) 四个字段。例如: [{"word": "cat", "phonetic": "/kæt/", "translation": "猫", "sentence": "The cat is sleeping on the sofa."}]。如果无法识别，请返回空数组 []。`;
+
+                const payload = {
+                    model: 'ep-20250625120606-dzbxj',
+                    messages: [{
+                        role: 'user',
+                        content: [{
+                            type: 'text',
+                            text: promptText
+                        }, {
+                            type: 'image_url',
+                            image_url: {
+                                url: imageDataUrl
+                            }
+                        }]
+                    }]
+                };
+
+                try {
+                    // 注意这里的变化！
+                    const response = await fetch(apiUrl, { 
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            // 不再需要在这里发送Authorization头
+                        },
+                        body: JSON.stringify(payload) // 直接发送模型需要的payload
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API 请求失败，状态码：${response.status}. 详情: ${errorData.error.message || JSON.stringify(errorData)}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    const content = data.choices[0].message.content;
+                    try {
+                        const wordData = JSON.parse(content);
+                        displayResults(wordData);
+                    } catch (e) {
+                         throw new Error('API返回的数据不是有效的JSON格式。原始返回: ' + content);
+                    }
+
+                } catch (error) {
+                    displayError(`发生错误: ${error.message}`);
+                    console.error('详细错误:', error);
+                } finally {
+                    loader.classList.add('hidden');
+                }
+            }
+
+            function displayResults(data) {
+                if (!Array.isArray(data) || data.length === 0) {
+                    displayError('未能在图片中识别出任何物品，或返回格式不正确。');
+                    return;
+                }
+                data.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'card p-6';
+                    card.innerHTML = `
+                        <h3 class="text-2xl font-bold text-indigo-600">${item.word || 'N/A'}</h3>
+                        <p class="text-gray-500 text-lg my-1">[${item.phonetic || 'N/A'}]</p>
+                        <p class="text-gray-800 font-semibold text-lg">${item.translation || 'N/A'}</p>
+                        <p class="mt-4 text-gray-600 italic">"${item.sentence || 'N/A'}"</p>
+                    `;
+                    wordCardsContainer.appendChild(card);
+                });
+            }
+            
+            function displayError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
+            }
+
+            function clearResults() {
+                errorMessage.classList.add('hidden');
+                wordCardsContainer.innerHTML = '';
+            }
+        });
+    </script>
+<!-- ... -->
