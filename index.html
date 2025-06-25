@@ -127,28 +127,24 @@
             uploadArea.addEventListener('click', () => imageUpload.click());
 
             // Drag and drop functionality
-            uploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                uploadArea.classList.add('drag-over');
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
             });
-            uploadArea.addEventListener('dragleave', () => {
-                uploadArea.classList.remove('drag-over');
-            });
+            uploadArea.addEventListener('dragenter', () => uploadArea.classList.add('drag-over'));
+            uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
             uploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
                 uploadArea.classList.remove('drag-over');
                 const file = e.dataTransfer.files[0];
-                if (file) {
-                    handleFile(file);
-                }
+                if (file) handleFile(file);
             });
 
             // Handle file selection from input
             imageUpload.addEventListener('change', (e) => {
                 const file = e.target.files[0];
-                if (file) {
-                    handleFile(file);
-                }
+                if (file) handleFile(file);
             });
 
             function handleFile(file) {
@@ -165,11 +161,33 @@
             }
 
             analyzeButton.addEventListener('click', () => {
-                if (imageBase64) {
-                    analyzeImage(imageBase64);
-                }
+                if (imageBase64) analyzeImage(imageBase64);
             });
             
+            /**
+             * NEW: Extracts a JSON object from a string that might contain other text.
+             * @param {string} str The string from the AI response.
+             * @returns {object|null} The parsed JSON object or null if not found.
+             */
+            function extractJson(str) {
+                // Find the first '[' and the last ']' to extract the array.
+                const startIndex = str.indexOf('[');
+                const endIndex = str.lastIndexOf(']');
+
+                if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+                    return null; // Not a valid array structure.
+                }
+
+                const jsonStr = str.substring(startIndex, endIndex + 1);
+                
+                try {
+                    return JSON.parse(jsonStr);
+                } catch (e) {
+                    console.error("Failed to parse extracted JSON string:", jsonStr, e);
+                    return null;
+                }
+            }
+
             async function analyzeImage(imageDataUrl) {
                 clearResults();
                 loader.classList.remove('hidden');
@@ -206,15 +224,17 @@
                     }
 
                     const content = data.choices[0].message.content;
-                    const wordData = JSON.parse(content);
+                    // Use the new robust JSON extraction function
+                    const wordData = extractJson(content);
+                    
+                    if (!wordData) {
+                         throw new Error('API返回的数据格式不是有效的JSON，无法解析。');
+                    }
+                    
                     displayResults(wordData);
 
                 } catch (error) {
-                    let friendlyError = error.message;
-                    if (error instanceof SyntaxError) {
-                        friendlyError = "API返回的数据格式不是有效的JSON，无法解析。";
-                    }
-                    displayError(`发生错误: ${friendlyError}`);
+                    displayError(`发生错误: ${error.message}`);
                     console.error('详细错误:', error);
                 } finally {
                     loader.classList.add('hidden');
