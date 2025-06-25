@@ -1,70 +1,53 @@
-const express = require('express');
-const axios = require('axios');
-const multer = require('multer');
-const FormData = require('form-data');
-const fs = require('fs');
-const path = require('path');
+// api/proxy.js
 
-const app = express();
-const upload = multer({ dest: 'uploads/' });
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// 图片识别API
-app.post('/api/recognize', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: '未上传图片' });
-    }
-
-    const formData = new FormData();
-    formData.append('image', fs.createReadStream(req.file.path));
-
-    // 调用豆包API进行图片识别
-    const response = await axios.post('https://api.doubao.com/vision/object_detection', formData, {
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${formData.getBoundary()}`,
-        'Authorization': `Bearer ${process.env.DOUBAO_API_KEY}`
-      }
-    });
-
-    // 删除临时文件
-    fs.unlinkSync(req.file.path);
-
-    res.json(response.data);
-  } catch (error) {
-    console.error('图片识别出错:', error);
-    res.status(500).json({ error: '图片识别失败' });
+export default async function handler(request, response) {
+  // 1. 仅允许 POST 方法
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: { message: 'Only POST method is allowed.' } });
   }
-});
 
-// 获取单词详细信息API
-app.post('/api/word_info', async (req, res) => {
+  // 2. 安全地从 Vercel 环境变量中获取 API 密钥
+  //    您需要在 Vercel 项目设置中添加一个名为 ARK_API_KEY 的环境变量
+  const apiKey = process.env.ARK_API_KEY;
+  if (!apiKey) {
+    console.error('Proxy Error: ARK_API_KEY environment variable is not set.');
+    return response.status(500).json({ error: { message: '服务器配置错误：API密钥未设置。' } });
+  }
+  
+  // 这是豆包API的地址，如果您的地址不同，请在此处修改
+  const apiUrl = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+
   try {
-    const { words } = req.body;
-    if (!words || !Array.isArray(words) || words.length === 0) {
-      return res.status(400).json({ error: '缺少单词列表' });
-    }
-
-    // 调用豆包API获取单词详细信息
-    const response = await axios.post('https://api.doubao.com/knowledge/words', {
-      words
-    }, {
+    // 3. 将请求转发给豆包 API
+    const apiResponse = await fetch(apiUrl, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.DOUBAO_API_KEY}`
-      }
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(request.body),
     });
 
-    res.json(response.data);
-  } catch (error) {
-    console.error('获取单词信息出错:', error);
-    res.status(500).json({ error: '获取单词信息失败' });
-  }
-});
+    // 4. 获取外部 API 的原始响应体
+    const responseBody = await apiResponse.text();
+    
+    // 5. 检查外部 API 的响应是否成功
+    if (!apiResponse.ok) {
+      console.error(`External API Error: Status ${apiResponse.status}, Body: ${responseBody}`);
+      // 尝试将错误信息作为JSON返回，如果失败则返回纯文本
+      try {
+        JSON.parse(responseBody);
+        return response.status(apiResponse.status).setHeader('Content-Type', 'application/json').send(responseBody);
+      } catch (e) {
+        return response.status(apiResponse.status).setHeader('Content-Type', 'text/plain').send(responseBody);
+      }
+    }
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`服务器运行在端口 ${PORT}`);
-});  
+    // 6. 将成功响应（应为JSON）返回给前端
+    return response.status(200).setHeader('Content-Type', 'application/json').send(responseBody);
+
+  } catch (error) {
+    console.error('Proxy Caught Error:', error);
+    return response.status(500).json({ error: { message: '代理服务器发生意外错误。', details: error.message } });
+  }
+}
