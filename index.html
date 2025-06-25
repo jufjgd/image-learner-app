@@ -1,222 +1,351 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图像识别英语学习工具</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* Light gray background */
-        }
-        .card {
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            transition: transform 0.2s ease-in-out;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-        }
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .file-input-button {
-            background-color: #4f46e5;
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .file-input-button:hover {
-            background-color: #4338ca;
-        }
-        #image-upload {
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>英语学习工具 - 图片识别学单词</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  
+  <!-- 配置Tailwind自定义主题 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#10B981',
+            accent: '#8B5CF6',
+            neutral: '#1F2937',
+            'neutral-light': '#F3F4F6',
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .text-shadow {
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .card-hover {
+        transition: all 0.3s ease;
+      }
+      .card-hover:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      }
+    }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
+<body class="font-inter bg-gray-50 min-h-screen flex flex-col">
+  <!-- 导航栏 -->
+  <nav class="bg-white shadow-md sticky top-0 z-50 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 flex items-center">
+            <i class="fa fa-graduation-cap text-primary text-2xl mr-2"></i>
+            <span class="text-xl font-bold text-neutral">英语学习工具</span>
+          </div>
+        </div>
+        <div class="flex items-center">
+          <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 transition-colors">
+            <i class="fa fa-moon-o text-neutral"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
 
-    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">图像识别英语学习工具</h1>
-            <p class="mt-2 text-md text-gray-600">上传图片，AI助您学习图中万物</p>
-        </header>
-
-        <main>
-            <!-- Image Upload Section -->
-            <div class="bg-white p-6 rounded-xl shadow-md">
-                <h2 class="text-xl font-semibold mb-3">上传图片并开始学习</h2>
-                <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-8">
-                    <img id="image-preview" src="" alt="图片预览" class="max-w-full max-h-64 rounded-lg mb-4 hidden">
-                    <p id="upload-prompt" class="text-gray-500 mb-4">请选择一张图片进行识别</p>
-                    <input type="file" id="image-upload" accept="image/*">
-                    <label for="image-upload" class="file-input-button mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-2" viewBox="0 0 20 20" fill="currentColor">
-                           <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                        </svg>
-                        选择文件
-                    </label>
-                    <button id="analyze-button" class="bg-green-600 text-white font-bold px-8 py-3 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
-                        开始识别
-                    </button>
-                </div>
-            </div>
-
-            <!-- Results Section -->
-            <div id="results-container" class="mt-8">
-                <div id="loader" class="loader mx-auto hidden"></div>
-                <div id="error-message" class="text-center text-red-500 font-medium p-4 bg-red-100 rounded-lg hidden"></div>
-                <div id="word-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Word cards will be inserted here -->
-                </div>
-            </div>
-        </main>
+  <!-- 主内容区 -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- 介绍卡片 -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8 transform transition-all duration-300 hover:shadow-xl">
+      <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-neutral mb-4">图片识别学单词</h1>
+      <p class="text-gray-600 mb-6">上传一张图片，我们会识别其中的物品，并提供每个物品的英语单词、音标、中文翻译和英文例句，帮助你轻松学习英语。</p>
+      
+      <!-- 上传区域 -->
+      <div id="upload-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors">
+        <i class="fa fa-cloud-upload text-5xl text-gray-400 mb-4"></i>
+        <h3 class="text-lg font-medium text-gray-700 mb-2">拖放图片到这里，或点击上传</h3>
+        <p class="text-sm text-gray-500 mb-4">支持 JPG, PNG, WebP 格式</p>
+        <input type="file" id="image-upload" class="hidden" accept="image/*">
+        <button id="upload-btn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-6 rounded-lg transition-colors shadow-md hover:shadow-lg">
+          选择图片
+        </button>
+      </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Get all necessary elements from the DOM
-            const imageUpload = document.getElementById('image-upload');
-            const imagePreview = document.getElementById('image-preview');
-            const analyzeButton = document.getElementById('analyze-button');
-            const loader = document.getElementById('loader');
-            const errorMessage = document.getElementById('error-message');
-            const wordCardsContainer = document.getElementById('word-cards');
-            const uploadPrompt = document.getElementById('upload-prompt');
+    <!-- 加载状态 -->
+    <div id="loading" class="hidden bg-white rounded-xl shadow-lg p-8 text-center mb-8">
+      <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
+      <h3 class="text-xl font-medium text-gray-700">正在识别图片中的物品...</h3>
+      <p class="text-gray-500 mt-2">请稍候，这可能需要几秒钟时间</p>
+    </div>
 
-            let imageBase64 = '';
+    <!-- 结果区域 -->
+    <div id="results" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <!-- 结果卡片将通过JavaScript动态添加 -->
+    </div>
 
-            // Handle image selection
-            imageUpload.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        imageBase64 = e.target.result;
-                        imagePreview.src = imageBase64;
-                        imagePreview.classList.remove('hidden');
-                        analyzeButton.disabled = false;
-                        uploadPrompt.classList.add('hidden');
-                        clearResults();
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
+    <!-- 没有结果 -->
+    <div id="no-results" class="hidden bg-white rounded-xl shadow-lg p-8 text-center mb-8">
+      <i class="fa fa-search text-5xl text-gray-400 mb-4"></i>
+      <h3 class="text-xl font-medium text-gray-700">未识别到任何物品</h3>
+      <p class="text-gray-500 mt-2">请尝试上传一张包含清晰物品的图片</p>
+    </div>
+  </main>
 
-            // Handle analysis button click
-            analyzeButton.addEventListener('click', () => {
-                if (!imageBase64) {
-                    displayError('错误：请先选择一张图片。');
-                    return;
-                }
-                analyzeImage(imageBase64);
-            });
-            
-            // Function to call the proxy API
-            async function analyzeImage(imageDataUrl) {
-                clearResults();
-                loader.classList.remove('hidden');
+  <!-- 页脚 -->
+  <footer class="bg-neutral text-white py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+          <div class="flex items-center">
+            <i class="fa fa-graduation-cap text-primary text-2xl mr-2"></i>
+            <span class="text-xl font-bold">英语学习工具</span>
+          </div>
+          <p class="text-gray-400 mt-2">通过图片识别轻松学习英语单词</p>
+        </div>
+        <div class="flex space-x-6">
+          <a href="#" class="text-gray-400 hover:text-white transition-colors">
+            <i class="fa fa-github text-xl"></i>
+          </a>
+          <a href="#" class="text-gray-400 hover:text-white transition-colors">
+            <i class="fa fa-twitter text-xl"></i>
+          </a>
+          <a href="#" class="text-gray-400 hover:text-white transition-colors">
+            <i class="fa fa-envelope text-xl"></i>
+          </a>
+        </div>
+      </div>
+      <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+        <p>&copy; 2025 英语学习工具 | 使用豆包API构建</p>
+      </div>
+    </div>
+  </footer>
 
-                const apiUrl = '/api/proxy'; // The serverless function endpoint on Vercel
-                
-                const promptText = `请严格按照JSON格式识别图片中的主要物体。返回一个JSON数组，数组中每个对象代表一个物品，并包含'word' (英文单词), 'phonetic' (IPA音标), 'translation' (中文翻译), 和 'sentence' (英文例句) 四个字段。例如: [{"word": "cat", "phonetic": "/kæt/", "translation": "猫", "sentence": "The cat is sleeping on the sofa."}]。如果无法识别，请返回空数组 []。`;
+  <!-- 单词详情模态框 -->
+  <div id="word-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 id="modal-title" class="text-xl font-bold text-neutral"></h3>
+          <button id="close-modal" class="text-gray-400 hover:text-gray-600 transition-colors">
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <div id="modal-content" class="space-y-4">
+          <!-- 单词详情内容将通过JavaScript动态添加 -->
+        </div>
+      </div>
+    </div>
+  </div>
 
-                const payload = {
-                    model: 'ep-20250625120606-dzbxj',
-                    messages: [{
-                        role: 'user',
-                        content: [{
-                            type: 'text',
-                            text: promptText
-                        }, {
-                            type: 'image_url',
-                            image_url: {
-                                url: imageDataUrl
-                            }
-                        }]
-                    }]
-                };
-
-                try {
-                    const response = await fetch(apiUrl, { 
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(`API 请求失败，状态码：${response.status}. 详情: ${errorData.error ? errorData.error.message : JSON.stringify(errorData)}`);
-                    }
-
-                    const data = await response.json();
-                    
-                    if (!data.choices || data.choices.length === 0) {
-                         throw new Error('API返回的响应中不包含有效的choices。');
-                    }
-
-                    const content = data.choices[0].message.content;
-                    try {
-                        const wordData = JSON.parse(content);
-                        displayResults(wordData);
-                    } catch (e) {
-                         throw new Error('API返回的数据不是有效的JSON格式。原始返回: ' + content);
-                    }
-
-                } catch (error) {
-                    displayError(`发生错误: ${error.message}`);
-                    console.error('详细错误:', error);
-                } finally {
-                    loader.classList.add('hidden');
-                }
-            }
-
-            // Function to display results
-            function displayResults(data) {
-                if (!Array.isArray(data) || data.length === 0) {
-                    displayError('未能在图片中识别出任何物品，或返回格式不正确。');
-                    return;
-                }
-                data.forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = 'card p-6';
-                    card.innerHTML = `
-                        <h3 class="text-2xl font-bold text-indigo-600">${item.word || 'N/A'}</h3>
-                        <p class="text-gray-500 text-lg my-1">[${item.phonetic || 'N/A'}]</p>
-                        <p class="text-gray-800 font-semibold text-lg">${item.translation || 'N/A'}</p>
-                        <p class="mt-4 text-gray-600 italic">"${item.sentence || 'N/A'}"</p>
-                    `;
-                    wordCardsContainer.appendChild(card);
-                });
-            }
-            
-            function displayError(message) {
-                errorMessage.textContent = message;
-                errorMessage.classList.remove('hidden');
-            }
-
-            function clearResults() {
-                errorMessage.classList.add('hidden');
-                wordCardsContainer.innerHTML = '';
-            }
+  <script>
+    // DOM元素
+    const uploadArea = document.getElementById('upload-area');
+    const imageUpload = document.getElementById('image-upload');
+    const uploadBtn = document.getElementById('upload-btn');
+    const loading = document.getElementById('loading');
+    const results = document.getElementById('results');
+    const noResults = document.getElementById('no-results');
+    const wordModal = document.getElementById('word-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalContent = document.getElementById('modal-content');
+    const closeModal = document.getElementById('close-modal');
+    const themeToggle = document.getElementById('theme-toggle');
+    
+    // API配置
+    const API_BASE_URL = '/api'; // 开发环境使用相对路径，生产环境可能需要修改
+    
+    // 事件监听器
+    uploadArea.addEventListener('click', () => imageUpload.click());
+    uploadBtn.addEventListener('click', () => imageUpload.click());
+    imageUpload.addEventListener('change', handleImageUpload);
+    closeModal.addEventListener('click', () => wordModal.classList.add('hidden'));
+    themeToggle.addEventListener('click', toggleTheme);
+    
+    // 拖放功能
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('border-primary');
+      uploadArea.classList.add('bg-blue-50');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('border-primary');
+      uploadArea.classList.remove('bg-blue-50');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('border-primary');
+      uploadArea.classList.remove('bg-blue-50');
+      
+      if (e.dataTransfer.files.length) {
+        handleImageUpload({ target: { files: e.dataTransfer.files } });
+      }
+    });
+    
+    // 主题切换
+    function toggleTheme() {
+      document.body.classList.toggle('dark');
+      const isDark = document.body.classList.contains('dark');
+      themeToggle.innerHTML = isDark ? 
+        '<i class="fa fa-sun-o text-yellow-400"></i>' : 
+        '<i class="fa fa-moon-o text-neutral"></i>';
+    }
+    
+    // 处理图片上传
+    function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      // 检查文件类型
+      if (!file.type.startsWith('image/')) {
+        alert('请上传图片文件！');
+        return;
+      }
+      
+      // 显示加载状态
+      loading.classList.remove('hidden');
+      results.classList.add('hidden');
+      noResults.classList.add('hidden');
+      
+      // 创建表单数据
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      // 发送请求到API
+      fetch(`${API_BASE_URL}/recognize`, {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (!data.objects || data.objects.length === 0) {
+          // 没有识别到物品
+          loading.classList.add('hidden');
+          noResults.classList.remove('hidden');
+          return;
+        }
+        
+        // 提取识别到的物品名称
+        const objects = data.objects.map(obj => obj.name);
+        
+        // 获取单词详细信息
+        return fetch(`${API_BASE_URL}/word_info`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ words: objects })
         });
-    </script>
-
+      })
+      .then(response => response.json())
+      .then(wordData => {
+        // 隐藏加载状态，显示结果
+        loading.classList.add('hidden');
+        results.classList.remove('hidden');
+        
+        // 清空结果区域
+        results.innerHTML = '';
+        
+        // 创建结果卡片
+        wordData.words.forEach(word => {
+          const card = createWordCard(word);
+          results.appendChild(card);
+        });
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        loading.classList.add('hidden');
+        alert('处理图片时出错，请重试');
+      });
+    }
+    
+    // 创建单词卡片
+    function createWordCard(word) {
+      const card = document.createElement('div');
+      card.className = 'bg-white rounded-xl shadow-md overflow-hidden card-hover';
+      
+      // 音标可能不存在，需要处理
+      const phoneticText = word.phonetic ? `[${word.phonetic}]` : '';
+      
+      card.innerHTML = `
+        <div class="p-6">
+          <div class="flex justify-between items-start mb-3">
+            <h3 class="text-xl font-bold text-neutral">${word.word}</h3>
+            <span class="text-gray-500 text-sm">${phoneticText}</span>
+          </div>
+          <p class="text-gray-600 mb-4">${word.meaning}</p>
+          <button class="w-full bg-primary/10 hover:bg-primary/20 text-primary font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center" 
+                  data-word="${word.word}">
+            <i class="fa fa-book mr-2"></i> 查看例句
+          </button>
+        </div>
+      `;
+      
+      // 添加点击事件
+      card.querySelector('button').addEventListener('click', () => {
+        showWordDetails(word);
+      });
+      
+      return card;
+    }
+    
+    // 显示单词详情
+    function showWordDetails(word) {
+      // 设置模态框标题
+      modalTitle.textContent = word.word;
+      
+      // 设置模态框内容
+      modalContent.innerHTML = `
+        <div class="border-b border-gray-200 pb-4">
+          <p class="text-lg text-gray-600">${word.meaning}</p>
+          <p class="text-sm text-gray-500 mt-1">${word.phonetic ? `音标: [${word.phonetic}]` : ''}</p>
+        </div>
+        
+        <div class="pt-4">
+          <h4 class="font-medium text-gray-700 mb-2">英文例句</h4>
+          ${word.examples ? 
+            word.examples.map(example => `
+              <div class="bg-gray-50 p-3 rounded-lg mb-3">
+                <p class="text-gray-700 mb-1">${example.sentence}</p>
+                <p class="text-gray-500 text-sm">${example.translation}</p>
+              </div>
+            `).join('') : 
+            '<p class="text-gray-500">暂无例句</p>'
+          }
+        </div>
+      `;
+      
+      // 显示模态框
+      wordModal.classList.remove('hidden');
+    }
+    
+    // 点击模态框外部关闭
+    wordModal.addEventListener('click', (e) => {
+      if (e.target === wordModal) {
+        wordModal.classList.add('hidden');
+      }
+    });
+    
+    // 添加键盘事件关闭模态框
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !wordModal.classList.contains('hidden')) {
+        wordModal.classList.add('hidden');
+      }
+    });
+  </script>
 </body>
-</html>
+</html>  
