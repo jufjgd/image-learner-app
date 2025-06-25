@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI图像单词学习卡</title>
+    <title>AI图像单词学习卡 (Gemini版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -123,10 +123,7 @@
 
             let imageBase64 = '';
 
-            // Click to upload
             uploadArea.addEventListener('click', () => imageUpload.click());
-
-            // Drag and drop functionality
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 uploadArea.addEventListener(eventName, e => {
                     e.preventDefault();
@@ -140,7 +137,6 @@
                 const file = e.dataTransfer.files[0];
                 if (file) handleFile(file);
             });
-
             imageUpload.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (file) handleFile(file);
@@ -170,9 +166,7 @@
                 const jsonStr = str.substring(startIndex, endIndex + 1);
                 try {
                     return JSON.parse(jsonStr);
-                } catch (e) {
-                    return null;
-                }
+                } catch (e) { return null; }
             }
 
             async function analyzeImage(imageDataUrl) {
@@ -181,12 +175,11 @@
 
                 const apiUrl = '/api/proxy';
                 const promptText = `请严格按照JSON格式识别图片中的主要物体。返回一个JSON数组，数组中每个对象代表一个物品，并包含'word' (英文单词), 'phonetic' (IPA音标), 'translation' (中文翻译), 和 'sentence' (英文例句) 四个字段。例如: [{"word": "cat", "phonetic": "/kæt/", "translation": "猫", "sentence": "The cat is sleeping on the sofa."}]。如果无法识别，请返回空数组 []。`;
+                
+                // *** 适配Gemini代理的请求体 ***
                 const payload = {
-                    model: 'ep-20250625120606-dzbxj',
-                    messages: [{
-                        role: 'user',
-                        content: [{ type: 'text', text: promptText }, { type: 'image_url', image_url: { url: imageDataUrl } }]
-                    }]
+                    imageDataUrl: imageDataUrl,
+                    promptText: promptText
                 };
 
                 try {
@@ -196,34 +189,23 @@
                         body: JSON.stringify(payload)
                     });
 
-                    // *** NEW: Smarter Error Handling ***
                     if (!response.ok) {
-                        const contentType = response.headers.get("content-type");
-                        let errorText = `API 请求失败 (状态码: ${response.status})。`;
-
-                        if (contentType && contentType.includes("application/json")) {
-                            const errorData = await response.json();
-                            errorText += ` 详细信息: ${errorData.error?.message || JSON.stringify(errorData)}`;
-                        } else {
-                            // This is the most likely case for your error.
-                            errorText += ` 服务器返回了非预期的格式，这通常意味着后端函数超时或崩溃。请检查Vercel后台日志获取根本原因。`;
-                            const rawError = await response.text();
-                            console.error("收到的原始服务器错误:", rawError); 
-                        }
-                        throw new Error(errorText);
+                        const errorData = await response.json();
+                        throw new Error(`API 请求失败: ${errorData.error?.message || JSON.stringify(errorData)}`);
                     }
 
                     const data = await response.json();
                     
-                    if (!data.choices || data.choices.length === 0) {
-                        throw new Error('API返回的响应中不包含有效的 choices。');
+                    // *** 适配Gemini代理的响应结构 ***
+                    if (!data.content) {
+                        throw new Error('API响应中缺少预期的 "content" 字段。');
                     }
-
-                    const content = data.choices[0].message.content;
+                    
+                    const content = data.content;
                     const wordData = extractJson(content);
                     
                     if (!wordData) {
-                         throw new Error('无法从AI的响应中提取出有效的JSON数据。');
+                         throw new Error('无法从AI的响应中提取出有效的JSON数据。原始文本: ' + content);
                     }
                     
                     displayResults(wordData);
@@ -270,37 +252,3 @@
     </script>
 </body>
 </html>
-```
-
----
-
-### 如何查找根本原因：检查Vercel日志
-
-请按照以下步骤操作，这会帮助我们找到问题的真正原因。
-
-1.  **登录Vercel**
-    * 打开 [vercel.com](https://vercel.com/) 并登录。
-
-2.  **进入项目**
-    * 在您的仪表盘（Dashboard）中，点击您的项目（`imagelearnerapp`）。
-
-3.  **找到日志 (Logs)**
-    * 在项目页面顶部，点击 **"Logs"** 标签页。
-
-    
-4.  **定位函数日志**
-    * 在日志页面，您会看到 "Functions" 和 "Builds" 两个子标签。请确保您在 **"Functions"** 标签下。
-    * 在函数列表中，点击 `api/proxy.js`。
-
-    
-5.  **分析错误**
-    * 现在，请**重新操作一次您的网站**，上传图片并点击识别，让错误再次发生。
-    * 回到Vercel日志页面，您会看到实时打印出的日志。如果函数崩溃了，这里会出现**红色的错误信息**。
-
-    **常见的红色错误信息包括：**
-    * `TASK TIMED OUT`：这表示函数运行超过了10秒（Vercel免费版的限制）。这是**最有可能**的原因。
-    * `read ECONNRESET` 或 `Connection timeout`：表示连接豆包API时网络出错了。
-    * `INVALID_API_KEY`：如果日志里出现类似这样的字样，说明您的API密钥有误。
-    * 其他代码错误...
-
-请您按照这个指南操作，并将您在Vercel日志中看到的**红色错误信息**截图或复制给我。这样，我就能为您提供最精准的解决方
