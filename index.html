@@ -1,15 +1,15 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  BookOpen, Search, BarChart2, Book, Layers, FileText, PieChart, 
-  CheckCircle, AlertCircle, RefreshCw, Share2, Award, AlertTriangle, 
-  ChevronRight, Info, Copy, Home, GraduationCap, Brain, ArrowLeft
+  BookOpen, Search, Book, FileText, PieChart, 
+  CheckCircle, AlertCircle, RefreshCw, Share2, Award, Info, 
+  Home, GraduationCap, Brain, ArrowLeft, ChevronRight
 } from 'lucide-react';
 
 // ==========================================
 // 核心数据层 (Data Layer)
 // ==========================================
 
-// --- 1. 词汇测试数据 (Vocab Test Data) ---
+// --- 1. 词汇测试数据 ---
 const shuffleArray = (array) => {
   const newArray = [...array];
   for (let i = newArray.length - 1; i > 0; i--) {
@@ -113,7 +113,7 @@ const getRandomSubarray = (arr, size) => {
   return shuffled.slice(0, size);
 };
 
-// --- 2. 阅读分析数据 (Reading Analysis Data) ---
+// --- 2. 阅读分析数据 ---
 const COCA_3000_STRING = `
 the be to of and a in that have I it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is are was were been has had did does am may should
 apple money story book read write listen speak learn english world life hand part child eye woman place work week case point government company number group problem fact own leave put mean keep let begin seem help talk turn start show hear play run move live believe bring happen must provide sit stand lose pay meet include continue set change lead understand watch follow stop create allow add spend grow open walk win offer remember love consider appear buy wait serve die send expect build stay fall cut reach kill remain suggest raise pass sell require report decide pull break 
@@ -126,7 +126,7 @@ const COCA_WORD_SET = new Set(
   COCA_3000_STRING.toLowerCase().split(/\s+/).filter(w => w.length > 0)
 );
 
-// --- 3. 书库数据 (Book DB) ---
+// --- 3. 书库数据 ---
 const BOOK_DB = [
   // 1k-3k
   { id: 1, title: "The Cat in the Hat", author: "Dr. Seuss", level: 500, cover: "🐱", desc: "极简韵律诗，适合零基础语感启蒙。", tags: ["童书", "韵律"] },
@@ -147,7 +147,7 @@ const BOOK_DB = [
 ];
 
 // ==========================================
-// 子组件 (Modules)
+// 子组件模块
 // ==========================================
 
 // --- Module 1: 词汇量测试 ---
@@ -161,7 +161,6 @@ const VocabTestModule = ({ onBack }) => {
   const [finalResult, setFinalResult] = useState(null);
   const [showToast, setShowToast] = useState(false);
 
-  // 初始化测试
   const initTest = () => {
     const newWords = getRandomSubarray(FULL_WORD_POOL, 30).sort((a, b) => a.id - b.id);
     setDisplayWords(newWords);
@@ -176,7 +175,6 @@ const VocabTestModule = ({ onBack }) => {
     const checkedIds = Array.from(selectedWords);
     const potentialQuestions = displayWords.filter(w => checkedIds.includes(w.id) && w.hasQuestion);
     
-    // 补题逻辑
     let finalQuestions = potentialQuestions;
     if (finalQuestions.length < 3) {
       const remainingQuestions = displayWords.filter(w => w.hasQuestion && !checkedIds.includes(w.id));
@@ -184,7 +182,6 @@ const VocabTestModule = ({ onBack }) => {
       finalQuestions = [...finalQuestions, ...remainingQuestions.slice(0, needed)];
     }
 
-    // 随机选题并打乱选项
     const selectedQuestions = shuffleArray(finalQuestions).slice(0, 5);
     const questionsWithShuffledOptions = selectedQuestions.map(q => ({
       ...q,
@@ -291,7 +288,6 @@ const VocabTestModule = ({ onBack }) => {
     setTimeout(() => setShowToast(false), 2000);
   };
 
-  // 渲染逻辑
   if (phase === 'intro') {
     return (
       <div className="max-w-2xl mx-auto p-4">
@@ -720,18 +716,16 @@ const GradedReadingModule = ({ onBack, analyzerState, setAnalyzerState }) => {
 export default function EnglishMasterApp() {
   const [currentModule, setCurrentModule] = useState('home'); // home | vocab | reading
   
-  // 状态提升：保持阅读助手的数据状态，避免切换模块后数据丢失
+  // 状态提升
   const [analyzerState, setAnalyzerState] = useState({
     text: '',
     result: null
   });
 
-  // 更新阅读助手的辅助函数
   const updateAnalyzerState = (text, result) => {
     setAnalyzerState(prev => ({ ...prev, ...(text !== undefined && { text }), ...(result !== undefined && { result }) }));
   };
   
-  // 为了传递给子组件更友好的接口
   const analyzerStateProps = {
     text: analyzerState.text,
     setText: (t) => updateAnalyzerState(t, undefined),
