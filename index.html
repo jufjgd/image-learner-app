@@ -1,254 +1,839 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI图像单词学习卡 (Gemini版)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Poppins', 'Noto Sans SC', sans-serif;
-            background-color: #f0f2f5;
-        }
-        .main-container {
-            max-width: 800px;
-            margin: auto;
-        }
-        .gradient-text {
-            background: linear-gradient(to right, #6366f1, #a855f7);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .upload-area {
-            border: 2px dashed #cbd5e1;
-            transition: background-color 0.3s, border-color 0.3s;
-        }
-        .upload-area.drag-over {
-            background-color: #e0e7ff;
-            border-color: #4f46e5;
-        }
-        .btn {
-            transition: all 0.3s ease;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-        .card {
-            background-color: white;
-            border-radius: 1rem;
-            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.08);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            overflow: hidden; /* Ensures content respects border radius */
-        }
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.12);
-        }
-        /* Loader animation */
-        .skeleton-loader {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 1.5rem;
-        }
-        .skeleton-card {
-            background-color: #e2e8f0;
-            border-radius: 1rem;
-            padding: 1.5rem;
-        }
-        .skeleton-line {
-            background-color: #cbd5e1;
-            border-radius: 0.25rem;
-            height: 1.25rem;
-            margin-bottom: 0.75rem;
-        }
-    </style>
-</head>
-<body class="bg-gray-50">
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  BookOpen, Search, BarChart2, Book, Layers, FileText, PieChart, 
+  CheckCircle, AlertCircle, RefreshCw, Share2, Award, AlertTriangle, 
+  ChevronRight, Info, Copy, Home, GraduationCap, Brain, ArrowLeft
+} from 'lucide-react';
 
-    <div class="main-container container mx-auto p-4 sm:p-6 lg:p-8">
-        <header class="text-center mb-10">
-            <h1 class="text-4xl sm:text-5xl font-bold gradient-text">AI图像单词学习卡</h1>
-            <p class="mt-4 text-lg text-gray-600">上传一张图片，即刻解锁图中万物的英语奥秘</p>
-        </header>
+// ==========================================
+// 核心数据层 (Data Layer)
+// ==========================================
 
-        <main>
-            <div id="upload-section" class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
-                <div id="upload-area" class="upload-area rounded-lg p-10 text-center cursor-pointer">
-                    <div id="upload-content">
-                        <svg class="mx-auto h-16 w-16 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                        </svg>
-                        <p class="mt-4 text-gray-600">将图片拖拽至此，或 <span class="font-semibold text-indigo-600">点击上传</span></p>
-                        <p class="text-sm text-gray-500 mt-1">支持 PNG, JPG, GIF 等格式</p>
+// --- 1. 词汇测试数据 (Vocab Test Data) ---
+const shuffleArray = (array) => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
+
+const FULL_WORD_POOL = [
+  // Level 1: 基础 (Rank 1-3000)
+  { id: 101, word: "Drive", level: 1, isFake: false },
+  { id: 102, word: "Period", level: 1, isFake: false },
+  { id: 103, word: "Maintain", level: 1, isFake: false, hasQuestion: true, question: "Synonym for 'Maintain'?", options: ["Destroy", "Keep up", "Ignore", "Fly"], answer: "Keep up" },
+  { id: 104, word: "Primary", level: 1, isFake: false },
+  { id: 105, word: "Solution", level: 1, isFake: false },
+  { id: 106, word: "Benefit", level: 1, isFake: false },
+  { id: 107, word: "Resident", level: 1, isFake: false },
+  { id: 108, word: "Challenge", level: 1, isFake: false },
+  { id: 109, word: "Surface", level: 1, isFake: false },
+  { id: 110, word: "Identify", level: 1, isFake: false, hasQuestion: true, question: "To 'Identify' is to...", options: ["Recognize", "Hide", "Create", "Forget"], answer: "Recognize" },
+  { id: 111, word: "Decade", level: 1, isFake: false },
+  { id: 112, word: "Capital", level: 1, isFake: false },
+
+  // Level 2: 进阶 (Rank 3000-6000)
+  { id: 201, word: "Estimate", level: 2, isFake: false, hasQuestion: true, question: "'Estimate' means...", options: ["Exact count", "Rough guess", "Forget", "Write"], answer: "Rough guess" },
+  { id: 202, word: "Distinct", level: 2, isFake: false },
+  { id: 203, word: "Phrase", level: 2, isFake: false },
+  { id: 204, word: "Biological", level: 2, isFake: false },
+  { id: 205, word: "Component", level: 2, isFake: false },
+  { id: 206, word: "Brizzy", level: 2, isFake: true }, // FAKE
+  { id: 207, word: "Aspect", level: 2, isFake: false },
+  { id: 208, word: "Perceive", level: 2, isFake: false },
+  { id: 209, word: "Resolve", level: 2, isFake: false, hasQuestion: true, question: "To 'Resolve' a problem is to...", options: ["Create it", "Find a solution", "Ignore it", "Ask for help"], answer: "Find a solution" },
+  { id: 210, word: "Frequent", level: 2, isFake: false },
+  { id: 211, word: "Internal", level: 2, isFake: false },
+  { id: 212, word: "Glompf", level: 2, isFake: true }, // FAKE
+
+  // Level 3: 中高 (Rank 6000-10000)
+  { id: 301, word: "Integration", level: 3, isFake: false, hasQuestion: true, question: "'Integration' involves...", options: ["Separation", "Combining", "Deleting", "Moving"], answer: "Combining" },
+  { id: 302, word: "Subtle", level: 3, isFake: false, hasQuestion: true, question: "Something 'Subtle' is...", options: ["Obvious", "Not obvious", "Loud", "Red"], answer: "Not obvious" },
+  { id: 303, word: "Constraint", level: 3, isFake: false },
+  { id: 304, word: "Profound", level: 3, isFake: false },
+  { id: 305, word: "Replication", level: 3, isFake: false },
+  { id: 306, word: "Excalt", level: 3, isFake: true }, // FAKE
+  { id: 307, word: "Vocal", level: 3, isFake: false },
+  { id: 308, word: "Deficit", level: 3, isFake: false },
+  { id: 309, word: "Adequate", level: 3, isFake: false, hasQuestion: true, question: "'Adequate' means...", options: ["Enough", "Too much", "Too little", "Excellent"], answer: "Enough" },
+  { id: 310, word: "Monitor", level: 3, isFake: false },
+  { id: 311, word: "Trale", level: 3, isFake: true }, // FAKE
+  { id: 312, word: "Capable", level: 3, isFake: false },
+
+  // Level 4: 高级 (Rank 10000-14000)
+  { id: 401, word: "Induce", level: 4, isFake: false, hasQuestion: true, question: "To 'Induce' is to...", options: ["Stop", "Cause/Start", "Watch", "Hide"], answer: "Cause/Start" },
+  { id: 402, word: "Predecessor", level: 4, isFake: false, hasQuestion: true, question: "A 'Predecessor' comes...", options: ["After", "Before", "With", "Against"], answer: "Before" },
+  { id: 403, word: "Autonomy", level: 4, isFake: false },
+  { id: 404, word: "Resonance", level: 4, isFake: false },
+  { id: 405, word: "Distermin", level: 4, isFake: true }, // FAKE
+  { id: 406, word: "Intrinsically", level: 4, isFake: false },
+  { id: 407, word: "Bureaucratic", level: 4, isFake: false },
+  { id: 408, word: "Legislative", level: 4, isFake: false },
+  { id: 409, word: "Aggregate", level: 4, isFake: false, hasQuestion: true, question: "To 'Aggregate' is to...", options: ["Separate", "Collect together", "Throw away", "Divide"], answer: "Collect together" },
+  { id: 410, word: "Distortion", level: 4, isFake: false },
+  { id: 411, word: "Splenderize", level: 4, isFake: true }, // FAKE
+  { id: 412, word: "Controversy", level: 4, isFake: false },
+
+  // Level 5: 专业 (Rank 14000-17000)
+  { id: 501, word: "Cognitive", level: 5, isFake: false, hasQuestion: true, question: "'Cognitive' relates to...", options: ["Muscles", "Mental processes", "Emotions", "Socializing"], answer: "Mental processes" },
+  { id: 502, word: "Pragmatic", level: 5, isFake: false, hasQuestion: true, question: "'Pragmatic' means...", options: ["Practical", "Theoretical", "Emotional", "Careless"], answer: "Practical" },
+  { id: 503, word: "Flarist", level: 5, isFake: true }, // FAKE
+  { id: 504, word: "Sovereignty", level: 5, isFake: false },
+  { id: 505, word: "Ubiquitous", level: 5, isFake: false },
+  { id: 506, word: "Consensus", level: 5, isFake: false },
+  { id: 507, word: "Ambiguity", level: 5, isFake: false },
+  { id: 508, word: "Allocation", level: 5, isFake: false },
+  { id: 509, word: "Incentive", level: 5, isFake: false, hasQuestion: true, question: "An 'Incentive' is...", options: ["A punishment", "Motivation/Reward", "A mistake", "A law"], answer: "Motivation/Reward" },
+  { id: 510, word: "Diminish", level: 5, isFake: false },
+  { id: 511, word: "Quixotl", level: 5, isFake: true }, // FAKE
+  { id: 512, word: "Utilization", level: 5, isFake: false },
+
+  // Level 6: 巅峰/生僻 (Rank 17000+)
+  { id: 601, word: "Esoteric", level: 6, isFake: false, hasQuestion: true, question: "'Esoteric' knowledge is...", options: ["Common", "Rare/Secret", "Useless", "New"], answer: "Rare/Secret" },
+  { id: 602, word: "Meticulous", level: 6, isFake: false, hasQuestion: true, question: "'Meticulous' means...", options: ["Lazy", "Very precise", "Fast", "Angry"], answer: "Very precise" },
+  { id: 603, word: "Cromulent", level: 6, isFake: true }, // FAKE
+  { id: 604, word: "Ephemeral", level: 6, isFake: false, hasQuestion: true, question: "Something 'Ephemeral' is...", options: ["Short-lived", "Eternal", "Heavy", "Tasty"], answer: "Short-lived" },
+  { id: 605, word: "Loquacious", level: 6, isFake: false },
+  { id: 606, word: "Inimical", level: 6, isFake: false },
+  { id: 607, word: "Pernicious", level: 6, isFake: false },
+  { id: 608, word: "Glarify", level: 6, isFake: true }, // FAKE
+  { id: 609, word: "Obfuscate", level: 6, isFake: false },
+  { id: 610, word: "Abrogate", level: 6, isFake: false },
+  { id: 611, word: "Compendium", level: 6, isFake: false },
+  { id: 612, word: "Hegemony", level: 6, isFake: false },
+  { id: 613, word: "Iconoclast", level: 6, isFake: false, hasQuestion: true, question: "An 'Iconoclast'...", options: ["Builds statues", "Attacks cherished beliefs", "Paints pictures", "Fixes computers"], answer: "Attacks cherished beliefs" },
+  { id: 614, word: "Frabjous", level: 6, isFake: true }, // FAKE
+];
+
+const MAX_VOCAB = 22000;
+const getRandomSubarray = (arr, size) => {
+  const shuffled = shuffleArray(arr);
+  return shuffled.slice(0, size);
+};
+
+// --- 2. 阅读分析数据 (Reading Analysis Data) ---
+const COCA_3000_STRING = `
+the be to of and a in that have I it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is are was were been has had did does am may should
+apple money story book read write listen speak learn english world life hand part child eye woman place work week case point government company number group problem fact own leave put mean keep let begin seem help talk turn start show hear play run move live believe bring happen must provide sit stand lose pay meet include continue set change lead understand watch follow stop create allow add spend grow open walk win offer remember love consider appear buy wait serve die send expect build stay fall cut reach kill remain suggest raise pass sell require report decide pull break 
+happy sad big small large little young old long short high low early late important social political national public military different bad able easy hard major real sure best right better wrong strong possible whole free true full special open clear personal recent single medical current private past foreign fine common poor natural significant similar hot dead central serious ready simple legal environmental financial blue dark various entire close religious cold final main green nice huge popular traditional cultural physical individual
+president girl guy hope car city community name job result body information family level door student line minute idea kid parent face others level office door health person art war history party result change morning reason research girl guy food moment air teacher force education foot boy age policy music store term sound process market sense nation plan college interest death experience effect use class control care field role effort rate heart drug show leader voice wife police mind price decision son view relationship town road arm difference thank receive value building action model season society tax director position player record paper space ground form event official matter center couple site project activity star table need american court lot study job oil situation industry picture news quality hour type month section security sport game area south management nothing standard computer
+across although anything around ask away before behind between both bus business buy call car change check city close cold come continue cry cut dance dark date daughter day dead dear decide die different dinner do doctor dog door down dream drink drive each early eat eight elephant eleven else end enjoy enough even evening ever every everyone everything eye face fall family far farm fast father feel few find fine finger finish fire first fish five fly food foot for forget four friend from front fruit full fun game garden get girl give glass go good goodbye grandfather grandmother grass great green grey ground group grow guess hair half hand happen happy hard hat have he head hear heavy hello help her here high hill him his hit hold hole holiday home hope horse hospital hot hour house how hundred hungry hurt husband I ice idea if important in inside into invite is island it job juice jump just keep key kick kill kind king kitchen knee knife knock know ladder lady lake lamp land large last late laugh lay lead leaf learn leave left leg lemon let letter library lie life lift light like line lion lip listen little live long look lose lot love low lunch machine make man many map market marry matter may me meal mean meat meet message middle milk million minute miss mistake mix model money month moon more morning mother mountain mouse mouth move movie Mr Mrs much music must my name narrow natural near neck need neighbor never new next nice night nine no noise north nose not note nothing now number nurse ocean of off offer office often oil old on one only open or orange order other our out outside over own page paint pair paper parent park part partner party pass past pay pen pencil people pepper person pet phone photo piano pick picture piece pig pilot place plan plane plant play please pocket point police pool poor popular post potato pound pour practice prepare present pretty price prince princess prison prize probably problem program pull puppy push put queen question queue quick quiet quit quite quote race racial radical radio rail rain raise range rank rapid rare rat rate rather ratio raw reach react reaction read reader ready real realise reality realize really rear reason reasonable recall receipt receive recent reception reckon recognition recognize recommend record recover red reduce reduction refer reference reflect reform refrigerator refuse regard region register regret regular regulation reject relate relation relationship relative relax release relevant relief religion religious rely remain remark remarkable remember remind remote removal remove rent repair repeat replace reply report represent representative reproduce republic reputation request require requirement rescue research resemble reserve resident resist resistance resolution resolve resort resource respect respond response responsibility responsible rest restaurant restore restrict result resume retail retain retire retreat return reveal revenge review revolution reward rhythm rice rich rid ride rider right ring rise risk rival river road roar roast rob robot rock rocket rod roll romantic roof room root rope rose rough round route routine row royal rub rubber rubbish rude rug ruin rule ruler rumour run runner rural rush Russian rust sack sad saddle safe safety sail sailor sake salad salary sale salt same sample sanction sand sandwich satisfaction satisfy sauce sausage save say scale scandal scare scene schedule scheme school science scientific scientist scissors score scream screen screw script sea seal search season seat second secret secretary section sector secure security see seed seek seem seize select selection self sell senate send senior sense sensible sensitive sentence separate September sequence series serious servant serve service session set settle settlement seven several severe sew sex sexual shade shadow shake shall shallow shame shape share sharp shave she shed sheep sheet shelf shell shelter shift shine ship shirt shock shoe shoot shop shopkeeper shore short shot should shoulder shout shove show shower shrug shut sick side sight sign signal signature silence silent silk silly silver similar simple since sing singer single sink sir sister sit site situation six size skill skin skirt sky slave sleep slice slide slight slip slope slow small smart smell smile smoke smooth snake snap snow so soap soccer social society sock soft soil soldier sole solid solution solve some somebody somehow someone something sometimes somewhat somewhere son song soon sore sorry sort soul sound sour source south southern space spade Spain Spanish spare spark speak speaker special specialist species specific speech speed spell spend spice spider spill spin spirit spit spite splash split spoil spoon sport spot spray spread spring spy square squeeze stable staff stage stain stair stake stall stamp stand standard star stare start state statement station statue stay steak steal steam steel steep steer stem step stick stiff still sting stir stock stomach stone stool stop storage store storm story stove straight strain strange stranger strap strategic strategy straw stray stream street strength stress stretch strict strike string strip stripe stroke strong structure struggle stuff stupid style subject submit substantial succeed success successful such suck sudden suffer sugar suggest suggestion suit suitable suitcase sum summer summit sun Sunday super supper supply support suppose supreme sure surface surgeon surgery surprise surrender surround survey survive suspect suspicion suspicious swallow swear sweat sweep sweet swim swing switch sword symbol sympathy system table tackle tail take tale talk tall tank tap tape target task taste tax taxi tea teach teacher team tear technical technique technology teenager telephone television tell temper temperature temple temporary tempt ten tend tendency tennis tension tent term terms terrible territory terror test text than thank that the theatre their them theme then theory there therefore thermometer they thick thief thin thing think thirst thirty this thorough those though thought thousand thread threat threaten throat through throw thumb thunder thus ticket tide tidy tie tiger tight tile till time tin tiny tip tire tired title to toast today toe together toilet token tolerate toll tomato tomorrow ton tone tongue tonight too tool tooth top topic torch total touch tough tour tourist toward towel tower town toy trace track trade tradition traditional traffic tragedy trail train trainer training trait transaction transfer transform transition translate translation transmit transport trap travel tray treasure treat treatment treaty tree tremble trial triangle tribe trick trip troop trouble trousers truck true trumpet trunk trust truth try tube Tuesday tune tunnel turkey turn TV twelve twenty twice twin twist two type typical tyre ugly ultimate umbrella unable uncle unconscious under underneath understand understanding undertake unemployment unexpected unfair unfold unfortunate uniform union unique unit unite universal universe university unknown unless until unusual up upon upper upset upstairs urban urge urgent us use used useful user usual usually vacation vague vain valley valuable value van vanish variety various vary vase vegetable vehicle velvet verb verdict verse version very vessel vest veteran via victim victory video view village violence violent violet violin virtual virus visible vision visit visitor visual vital voice volume voluntary vote vowel voyage wage waist wait waiter wake walk wall wander want war ward warm warn warning wash waste watch water wave wax way we weak weapon wear weather weave web wedding week weekend weigh weight welcome welfare well west western wet what whatever wheat wheel when whenever where whereas wherever whether which while whip whisper whistle white who whole whom whose why wide widow wife wild will win wind window wine wing winner winter wipe wire wise wish wit with withdraw within without witness wolf woman wonder wonderful wood wool word work worker world worry worse worst worth would wound wrap wreck wrist write writer writing wrong yard year yell yellow yes yesterday yet yield you young your youth zero zone zoo
+`;
+
+const COCA_WORD_SET = new Set(
+  COCA_3000_STRING.toLowerCase().split(/\s+/).filter(w => w.length > 0)
+);
+
+// --- 3. 书库数据 (Book DB) ---
+const BOOK_DB = [
+  // 1k-3k
+  { id: 1, title: "The Cat in the Hat", author: "Dr. Seuss", level: 500, cover: "🐱", desc: "极简韵律诗，适合零基础语感启蒙。", tags: ["童书", "韵律"] },
+  { id: 2, title: "Charlotte's Web", author: "E.B. White", level: 1500, cover: "🕸️", desc: "关于友情的感人故事，词汇简单但句式地道。", tags: ["经典", "温情"] },
+  { id: 3, title: "The Little Prince", author: "Saint-Exupéry", level: 2500, cover: "👑", desc: "哲学童话，虽然简单，但有很多优美的隐喻。", tags: ["哲学", "治愈"] },
+  // 4k-6k
+  { id: 4, title: "Harry Potter 1", author: "J.K. Rowling", level: 4000, cover: "⚡", desc: "魔法世界的入口，虽然有生造词，但叙事流畅易读。", tags: ["奇幻", "冒险"] },
+  { id: 5, title: "Wonder", author: "R.J. Palacio", level: 4500, cover: "🚀", desc: "温暖治愈的现代小说，用词贴近当代生活。", tags: ["成长", "校园"] },
+  { id: 6, title: "The Old Man and the Sea", author: "Hemingway", level: 5000, cover: "🎣", desc: "海明威的硬汉文学，用词极其简练，但意蕴深远。", tags: ["文学", "经典"] },
+  { id: 7, title: "Flipped", author: "Wendelin Van Draanen", level: 5500, cover: "❤️", desc: "青春校园小说，大量地道的口语和心理描写。", tags: ["爱情", "成长"] },
+  // 7k-10k
+  { id: 8, title: "To Kill a Mockingbird", author: "Harper Lee", level: 6500, cover: "⚖️", desc: "美国文学必读经典，涉及法律与种族，语言优美。", tags: ["文学", "社会"] },
+  { id: 9, title: "Atomic Habits", author: "James Clear", level: 7000, cover: "⚛️", desc: "非虚构类畅销书，用词精准，逻辑清晰，适合职场人。", tags: ["自我提升", "商业"] },
+  { id: 10, title: "1984", author: "George Orwell", level: 8500, cover: "👁️", desc: "反乌托邦神作，政治词汇较多，思想深刻。", tags: ["科幻", "政治"] },
+  // 10k+
+  { id: 11, title: "The Great Gatsby", author: "F. Scott Fitzgerald", level: 9000, cover: "🥂", desc: "爵士时代的挽歌，包含大量修辞和复古表达。", tags: ["文学", "历史"] },
+  { id: 12, title: "Steve Jobs", author: "Walter Isaacson", level: 11000, cover: "🍎", desc: "人物传记，词汇量大且涉及科技商业术语。", tags: ["传记", "科技"] },
+];
+
+// ==========================================
+// 子组件 (Modules)
+// ==========================================
+
+// --- Module 1: 词汇量测试 ---
+const VocabTestModule = ({ onBack }) => {
+  const [phase, setPhase] = useState('intro');
+  const [displayWords, setDisplayWords] = useState([]);
+  const [selectedWords, setSelectedWords] = useState(new Set());
+  const [quizQuestions, setQuizQuestions] = useState([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [quizScore, setQuizScore] = useState(0);
+  const [finalResult, setFinalResult] = useState(null);
+  const [showToast, setShowToast] = useState(false);
+
+  // 初始化测试
+  const initTest = () => {
+    const newWords = getRandomSubarray(FULL_WORD_POOL, 30).sort((a, b) => a.id - b.id);
+    setDisplayWords(newWords);
+    setSelectedWords(new Set());
+    setQuizScore(0);
+    setCurrentQuestionIndex(0);
+    setFinalResult(null);
+    setPhase('checklist');
+  };
+
+  const finishChecklist = () => {
+    const checkedIds = Array.from(selectedWords);
+    const potentialQuestions = displayWords.filter(w => checkedIds.includes(w.id) && w.hasQuestion);
+    
+    // 补题逻辑
+    let finalQuestions = potentialQuestions;
+    if (finalQuestions.length < 3) {
+      const remainingQuestions = displayWords.filter(w => w.hasQuestion && !checkedIds.includes(w.id));
+      const needed = 3 - finalQuestions.length;
+      finalQuestions = [...finalQuestions, ...remainingQuestions.slice(0, needed)];
+    }
+
+    // 随机选题并打乱选项
+    const selectedQuestions = shuffleArray(finalQuestions).slice(0, 5);
+    const questionsWithShuffledOptions = selectedQuestions.map(q => ({
+      ...q,
+      options: shuffleArray(q.options)
+    }));
+
+    if (questionsWithShuffledOptions.length === 0) {
+      calculateResult();
+    } else {
+      setQuizQuestions(questionsWithShuffledOptions);
+      setPhase('quiz');
+    }
+  };
+
+  const handleQuizAnswer = (option) => {
+    if (option === quizQuestions[currentQuestionIndex].answer) {
+      setQuizScore(prev => prev + 1);
+    }
+    if (currentQuestionIndex < quizQuestions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+      calculateResult();
+    }
+  };
+
+  const calculateResult = () => {
+    setPhase('calculating');
+    setTimeout(() => {
+      const checkedIds = Array.from(selectedWords);
+      const checkedObjects = displayWords.filter(w => checkedIds.includes(w.id));
+      const currentTestRealWeight = displayWords.filter(w => !w.isFake).reduce((acc, curr) => acc + curr.level, 0);
+      const userWeight = checkedObjects.filter(w => !w.isFake).reduce((acc, curr) => acc + curr.level, 0);
+      
+      let rawEstimate = (userWeight / currentTestRealWeight) * MAX_VOCAB;
+      
+      const fakeSelectedCount = checkedObjects.filter(w => w.isFake).length;
+      let penaltyMultiplier = 1;
+      if (fakeSelectedCount === 1) penaltyMultiplier = 0.85;
+      if (fakeSelectedCount >= 2) penaltyMultiplier = 0.6;
+      
+      let validationMultiplier = 1;
+      if (quizQuestions.length > 0) {
+        const quizAccuracy = quizScore / quizQuestions.length;
+        if (quizAccuracy < 0.4) validationMultiplier = 0.7;
+        else if (quizAccuracy > 0.8) validationMultiplier = 1.1;
+      }
+
+      let finalScore = Math.round(rawEstimate * penaltyMultiplier * validationMultiplier);
+      if (finalScore < 500) finalScore = 500;
+      if (finalScore > MAX_VOCAB) finalScore = MAX_VOCAB;
+
+      let resultConfig = {
+        title: "英语入门者",
+        desc: "你的词汇量处于起步阶段，适合阅读儿童绘本和简单的路标。",
+        comparison: "相当于美国小学 1-2 年级水平",
+        colorClass: "bg-green-500",
+        textColor: "text-green-600"
+      };
+
+      if (finalScore > 4000) {
+        resultConfig = {
+          title: "进阶学习者",
+          desc: "你已经掌握了大部分基础核心词汇，应付日常旅游和简单对话没有问题。",
+          comparison: "相当于美国初中生水平",
+          colorClass: "bg-teal-500",
+          textColor: "text-teal-600"
+        };
+      }
+      if (finalScore > 8000) {
+        resultConfig = {
+          title: "流利使用者",
+          desc: "你的词汇量已经非常扎实，能够阅读《时代周刊》等大众媒体文章。",
+          comparison: "相当于美国高中生水平",
+          colorClass: "bg-blue-600",
+          textColor: "text-blue-600"
+        };
+      }
+      if (finalScore > 12000) {
+        resultConfig = {
+          title: "学术英语大神",
+          desc: "你的词汇量超越了绝大多数非母语者，可以无障碍阅读学术论文或古典文学。",
+          comparison: "相当于大学本科生水平",
+          colorClass: "bg-purple-600",
+          textColor: "text-purple-600"
+        };
+      }
+      if (finalScore > 18000) {
+        resultConfig = {
+          title: "语言大师",
+          desc: "你的词汇储备令人惊叹，即使是 GRE 考试的填空题对你来说也是小菜一碟。",
+          comparison: "相当于受过高等教育的母语者",
+          colorClass: "bg-gray-900",
+          textColor: "text-gray-900"
+        };
+      }
+
+      setFinalResult({ score: finalScore, ...resultConfig, fakeCount: fakeSelectedCount });
+      setPhase('result');
+    }, 1500);
+  };
+
+  const handleShare = () => {
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2000);
+  };
+
+  // 渲染逻辑
+  if (phase === 'intro') {
+    return (
+      <div className="max-w-2xl mx-auto p-4">
+        <button onClick={onBack} className="flex items-center text-gray-500 mb-6 hover:text-gray-900 transition-colors">
+          <ArrowLeft size={20} className="mr-1" /> 返回首页
+        </button>
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-10 text-center">
+            <Brain className="w-20 h-20 text-white/90 mx-auto mb-6" />
+            <h1 className="text-3xl font-bold text-white mb-2">精准词汇量测试</h1>
+            <p className="text-blue-100">AI 自适应算法 · 伪词防作弊机制</p>
+          </div>
+          <div className="p-8">
+             <div className="space-y-6 mb-8">
+              <div className="flex items-start">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-4 text-blue-600 font-bold shrink-0">1</div>
+                <div>
+                  <h4 className="font-bold text-gray-800">随机抽样</h4>
+                  <p className="text-sm text-gray-500">每次测试从 20,000 词库中随机抽取 30 个词。</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-4 text-blue-600 font-bold shrink-0">2</div>
+                <div>
+                  <h4 className="font-bold text-gray-800">快速扫描</h4>
+                  <p className="text-sm text-gray-500">只需勾选你<span className="text-blue-600 font-bold">确实认识</span>的单词。</p>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-4 text-blue-600 font-bold shrink-0">3</div>
+                <div>
+                  <h4 className="font-bold text-gray-800">精准验证</h4>
+                  <p className="text-sm text-gray-500">通过几道 AI 生成的选择题校准你的真实水平。</p>
+                </div>
+              </div>
+            </div>
+            <button onClick={initTest} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 text-lg">
+              开始挑战 <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'checklist') {
+    return (
+      <div className="max-w-4xl mx-auto p-4 flex flex-col h-[calc(100vh-100px)]">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-full">
+          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">步骤 1/2: 词汇扫描</h2>
+              <p className="text-sm text-gray-500 mt-1">请仅勾选您能准确说出中文意思的单词。</p>
+            </div>
+            <div className="px-3 py-1 bg-gray-100 rounded text-xs font-mono text-gray-500">Round: {Math.floor(Math.random() * 9999)}</div>
+          </div>
+          
+          <div className="p-6 overflow-y-auto flex-grow">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {displayWords.map((item) => (
+                <div 
+                  key={item.id}
+                  onClick={() => {
+                    const newSet = new Set(selectedWords);
+                    if (newSet.has(item.id)) newSet.delete(item.id);
+                    else newSet.add(item.id);
+                    setSelectedWords(newSet);
+                  }}
+                  className={`
+                    cursor-pointer rounded-lg p-3 text-center border-2 transition-all duration-200 select-none text-sm md:text-base flex items-center justify-center h-14
+                    ${selectedWords.has(item.id) 
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold' 
+                      : 'border-gray-100 hover:border-blue-200 text-gray-600'}
+                  `}
+                >
+                  {item.word}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-gray-100 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+            <button 
+              onClick={finishChecklist}
+              disabled={selectedWords.size === 0}
+              className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all ${
+                selectedWords.size > 0 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              下一步 ({selectedWords.size} 个已选)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'quiz') {
+    const question = quizQuestions[currentQuestionIndex];
+    return (
+      <div className="max-w-md mx-auto p-4 flex items-center justify-center min-h-[60vh]">
+        <div className="w-full bg-white rounded-2xl shadow-xl overflow-hidden p-8">
+          <div className="mb-8">
+            <div className="flex justify-between text-xs text-gray-400 mb-2 uppercase tracking-wide font-semibold">
+              <span>Question {currentQuestionIndex + 1} / {quizQuestions.length}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-1.5 mb-6">
+              <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" style={{ width: `${((currentQuestionIndex + 1) / quizQuestions.length) * 100}%` }}></div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">
+              <span className="text-blue-600">{question.word}</span>
+            </h2>
+            <p className="text-lg text-gray-600 font-medium leading-relaxed">{question.question}</p>
+          </div>
+
+          <div className="space-y-3">
+            {question.options.map((opt, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleQuizAnswer(opt)}
+                className="w-full text-left p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-all font-medium text-gray-600 active:scale-[0.98] duration-150"
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'calculating') {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
+        <RefreshCw className="w-16 h-16 text-blue-600 animate-spin mb-6" />
+        <h2 className="text-2xl font-bold text-gray-800">AI 正在计算...</h2>
+        <p className="text-gray-500 mt-2">分析作答记录 / 比对 COCA 词频模型</p>
+      </div>
+    );
+  }
+
+  if (phase === 'result' && finalResult) {
+    return (
+      <div className="max-w-md mx-auto p-4">
+        {showToast && (
+            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 transition-all duration-300 z-50 animate-in fade-in slide-in-from-top-4">
+            <CheckCircle size={18} className="text-green-400" />
+            <span className="font-medium text-sm">成绩单链接已复制到剪贴板</span>
+            </div>
+        )}
+        
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden relative">
+          <button onClick={onBack} className="absolute top-4 left-4 text-white/80 hover:text-white z-20 bg-black/20 p-2 rounded-full backdrop-blur-sm">
+            <Home size={18} />
+          </button>
+          
+          <div className={`${finalResult.colorClass} pt-16 px-8 pb-20 text-center text-white relative overflow-hidden`}>
+            <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+            <Award className="w-16 h-16 mx-auto mb-4 relative z-10" />
+            <h2 className="text-white/80 font-semibold tracking-wider text-xs uppercase mb-2">预估词汇量储备</h2>
+            <div className="text-6xl font-extrabold relative z-10 flex items-baseline justify-center">
+              {finalResult.score.toLocaleString()}
+              <span className="text-xl font-medium opacity-60 ml-2">词</span>
+            </div>
+            
+            <div className="mt-8 bg-black/20 rounded-full h-1.5 w-full max-w-[240px] mx-auto relative backdrop-blur-sm">
+                <div 
+                    className="absolute top-1/2 -translate-y-1/2 bg-white h-3 w-3 rounded-full shadow-lg" 
+                    style={{ left: `${Math.min((finalResult.score / 22000) * 100, 100)}%` }}
+                ></div>
+            </div>
+            <div className="flex justify-between w-full max-w-[240px] mx-auto mt-2 text-[10px] text-white/60 font-mono">
+                <span>0</span>
+                <span>NATIVE (22k)</span>
+            </div>
+          </div>
+          
+          <div className="relative -mt-10 px-6 pb-8 flex flex-col items-center">
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full mb-6 border border-gray-100 text-center">
+              <h3 className={`text-2xl font-bold ${finalResult.textColor} mb-2`}>{finalResult.title}</h3>
+              <p className="text-sm text-gray-600 font-medium">{finalResult.comparison}</p>
+            </div>
+
+            <p className="text-gray-600 text-sm mb-6 leading-relaxed text-center px-4">
+              {finalResult.desc}
+            </p>
+
+            {finalResult.fakeCount > 0 && (
+              <div className="w-full bg-orange-50 border border-orange-100 rounded-xl p-4 mb-6 flex items-start gap-3">
+                <Info className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                <div className="text-left">
+                  <h4 className="text-xs font-bold text-orange-700 uppercase mb-1">诊断提示</h4>
+                  <p className="text-xs text-orange-800 leading-relaxed">
+                    检测到 {finalResult.fakeCount} 个混淆项选择。算法已修正估分以保证准确性。
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 w-full">
+              <button onClick={initTest} className="flex-1 py-3 border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                <RefreshCw size={18} /> 重测
+              </button>
+              <button onClick={handleShare} className="flex-1 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-colors flex items-center justify-center gap-2 active:scale-95 duration-100">
+                <Share2 size={18} /> 炫耀一下
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// --- Module 2: 分级阅读助手 ---
+const GradedReadingModule = ({ onBack, analyzerState, setAnalyzerState }) => {
+  const [activeTab, setActiveTab] = useState('analyzer'); // analyzer | books
+  const { text: analyzerText, setText: setAnalyzerText, result: analyzerResult, setResult: setAnalyzerResult } = analyzerState;
+  
+  const [vocabLevel, setVocabLevel] = useState(4000);
+
+  const filteredBooks = useMemo(() => {
+    return BOOK_DB.filter(book => 
+      book.level <= vocabLevel + 1500 && book.level >= vocabLevel - 3000
+    ).sort((a, b) => a.level - b.level);
+  }, [vocabLevel]);
+
+  const analyzeText = () => {
+    if (!analyzerText.trim()) return;
+    const words = analyzerText.replace(/[.,/#!$%^&*;:{}=\-_`~()"]/g, "").replace(/\s{2,}/g, " ").toLowerCase().split(" ");
+    const totalWords = words.length;
+    let hardWords = [];
+    let easyCount = 0;
+    words.forEach(word => {
+      if (word.length < 2 || !isNaN(word)) { easyCount++; return; }
+      if (COCA_WORD_SET.has(word)) { easyCount++; } 
+      else if (!hardWords.includes(word)) { hardWords.push(word); }
+    });
+    const easyPercentage = Math.round((easyCount / totalWords) * 100);
+    
+    let difficultyLabel = "非常简单", difficultyColor = "text-green-600 bg-green-50";
+    if (easyPercentage < 90) { difficultyLabel = "有点挑战"; difficultyColor = "text-yellow-600 bg-yellow-50"; }
+    if (easyPercentage < 80) { difficultyLabel = "比较困难"; difficultyColor = "text-orange-600 bg-orange-50"; }
+    if (easyPercentage < 60) { difficultyLabel = "极其晦涩"; difficultyColor = "text-red-600 bg-red-50"; }
+
+    setAnalyzerResult({ totalWords, easyPercentage, hardWords, difficultyLabel, difficultyColor });
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto p-4">
+      {/* Header inside Module */}
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={onBack} className="flex items-center text-gray-500 hover:text-gray-900 transition-colors">
+            <ArrowLeft size={20} className="mr-1" /> 返回首页
+        </button>
+        <div className="bg-gray-100 p-1 rounded-lg flex">
+            <button
+                onClick={() => setActiveTab('analyzer')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'analyzer' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
+            >
+                文本分析器
+            </button>
+            <button
+                onClick={() => setActiveTab('books')}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'books' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500'}`}
+            >
+                找书读
+            </button>
+        </div>
+      </div>
+
+      {activeTab === 'analyzer' ? (
+        <div className="grid md:grid-cols-2 gap-6 h-[calc(100vh-140px)]">
+          <div className="flex flex-col h-full">
+            <div className="bg-white p-4 rounded-t-xl border border-gray-200 border-b-0 flex justify-between items-center">
+              <h2 className="font-semibold flex items-center gap-2 text-gray-700">
+                <FileText size={18} className="text-gray-400" /> 输入英文文本
+              </h2>
+            </div>
+            <textarea 
+              className="flex-grow p-4 border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 font-mono text-sm leading-relaxed text-gray-600"
+              placeholder="在此粘贴你想读的新闻、小说片段..."
+              value={analyzerText}
+              onChange={(e) => setAnalyzerText(e.target.value)}
+            />
+            <button 
+              onClick={analyzeText}
+              disabled={!analyzerText.trim()}
+              className="bg-indigo-600 text-white py-4 rounded-b-xl font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <Search size={20} /> 开始分析难度
+            </button>
+          </div>
+
+          <div className="h-full overflow-y-auto">
+            {!analyzerResult ? (
+              <div className="h-full bg-white border border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 p-8 text-center">
+                <PieChart size={48} className="mb-4 text-gray-200" />
+                <p className="font-medium">等待分析...</p>
+                <p className="text-sm mt-2">粘贴文本后，AI 将为你计算生词率和阅读门槛。</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wide">阅读难度</h3>
+                      <div className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-bold ${analyzerResult.difficultyColor}`}>
+                        {analyzerResult.difficultyLabel}
+                      </div>
                     </div>
-                    <img id="image-preview" src="" alt="图片预览" class="max-w-full max-h-64 rounded-lg hidden">
-                    <input type="file" id="image-upload" accept="image/*" class="hidden">
+                    <div className="text-right">
+                      <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wide">舒适区覆盖率</h3>
+                      <div className="text-3xl font-bold text-gray-800">
+                        {analyzerResult.easyPercentage}<span className="text-lg text-gray-400">%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden">
+                    <div className={`h-full rounded-full ${analyzerResult.easyPercentage > 85 ? 'bg-green-500' : analyzerResult.easyPercentage > 70 ? 'bg-yellow-400' : 'bg-red-500'}`} style={{ width: `${analyzerResult.easyPercentage}%` }}></div>
+                  </div>
+                  <p className="text-xs text-gray-400 text-right">基于 COCA 3000 高频词库分析</p>
                 </div>
-                <div class="text-center mt-6">
-                    <button id="analyze-button" class="btn bg-indigo-600 text-white font-bold text-lg px-10 py-3 rounded-full hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none" disabled>
-                        开始识别
-                    </button>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold flex items-center gap-2 text-gray-800">
+                      <AlertCircle size={18} className="text-orange-500" />
+                      潜在生词 ({analyzerResult.hardWords.length})
+                    </h3>
+                  </div>
+                  {analyzerResult.hardWords.length === 0 ? (
+                    <div className="text-green-600 bg-green-50 p-4 rounded-lg flex items-center gap-2 text-sm">
+                      <CheckCircle size={16} /> 太棒了！这篇文章对你来说没有生词。
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {analyzerResult.hardWords.slice(0, 30).map((word, idx) => (
+                        <span key={idx} className="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md text-sm border border-gray-200">
+                          {word}
+                        </span>
+                      ))}
+                      {analyzerResult.hardWords.length > 30 && (
+                        <span className="text-xs text-gray-400 flex items-center px-2">
+                          + {analyzerResult.hardWords.length - 30} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white p-8 rounded-2xl shadow-lg border border-indigo-50 mb-10 text-center">
+            <h2 className="text-2xl font-bold mb-2 text-gray-800">找到你的 "i+1" 读物</h2>
+            <p className="text-gray-500 mb-8">拖动滑块设定词汇量，匹配最佳原版书。</p>
+            <div className="relative pt-6 pb-2 px-4">
+              <input 
+                type="range" min="1000" max="15000" step="500" 
+                value={vocabLevel} onChange={(e) => setVocabLevel(Number(e.target.value))}
+                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-4 font-mono">
+                <span>1k</span><span>3.5k</span><span>6k</span><span>8k+</span><span>15k</span>
+              </div>
+              <div className="mt-6">
+                <span className="inline-block bg-indigo-600 text-white px-6 py-2 rounded-full font-bold text-lg shadow-md shadow-indigo-200">
+                  我的词汇量: {vocabLevel}
+                </span>
+              </div>
             </div>
-
-            <!-- Results Section -->
-            <div id="results-container" class="mt-12">
-                <div id="loader" class="skeleton-loader hidden">
-                    <div class="skeleton-card"><div class="skeleton-line w-3/4"></div><div class="skeleton-line w-1/2"></div><div class="skeleton-line w-full"></div></div>
-                    <div class="skeleton-card"><div class="skeleton-line w-3/4"></div><div class="skeleton-line w-1/2"></div><div class="skeleton-line w-full"></div></div>
-                    <div class="skeleton-card"><div class="skeleton-line w-3/4"></div><div class="skeleton-line w-1/2"></div><div class="skeleton-line w-full"></div></div>
-                </div>
-                <div id="error-message" class="text-center text-red-600 font-medium p-4 bg-red-100 rounded-lg hidden"></div>
-                <div id="word-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Word cards will be generated here -->
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const uploadArea = document.getElementById('upload-area');
-            const uploadContent = document.getElementById('upload-content');
-            const imageUpload = document.getElementById('image-upload');
-            const imagePreview = document.getElementById('image-preview');
-            const analyzeButton = document.getElementById('analyze-button');
-            const loader = document.getElementById('loader');
-            const errorMessage = document.getElementById('error-message');
-            const wordCardsContainer = document.getElementById('word-cards');
-
-            let imageBase64 = '';
-
-            uploadArea.addEventListener('click', () => imageUpload.click());
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                uploadArea.addEventListener(eventName, e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                });
-            });
-            uploadArea.addEventListener('dragenter', () => uploadArea.classList.add('drag-over'));
-            uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
-            uploadArea.addEventListener('drop', (e) => {
-                uploadArea.classList.remove('drag-over');
-                const file = e.dataTransfer.files[0];
-                if (file) handleFile(file);
-            });
-            imageUpload.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) handleFile(file);
-            });
-
-            function handleFile(file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    imageBase64 = e.target.result;
-                    imagePreview.src = imageBase64;
-                    uploadContent.classList.add('hidden');
-                    imagePreview.classList.remove('hidden');
-                    analyzeButton.disabled = false;
-                    clearResults();
-                };
-                reader.readAsDataURL(file);
-            }
-
-            analyzeButton.addEventListener('click', () => {
-                if (imageBase64) analyzeImage(imageBase64);
-            });
-            
-            function extractJson(str) {
-                const startIndex = str.indexOf('[');
-                const endIndex = str.lastIndexOf(']');
-                if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) return null;
-                const jsonStr = str.substring(startIndex, endIndex + 1);
-                try {
-                    return JSON.parse(jsonStr);
-                } catch (e) { return null; }
-            }
-
-            async function analyzeImage(imageDataUrl) {
-                clearResults();
-                loader.classList.remove('hidden');
-
-                const apiUrl = '/api/proxy';
-                const promptText = `请严格按照JSON格式识别图片中的主要物体。返回一个JSON数组，数组中每个对象代表一个物品，并包含'word' (英文单词), 'phonetic' (IPA音标), 'translation' (中文翻译), 和 'sentence' (英文例句) 四个字段。例如: [{"word": "cat", "phonetic": "/kæt/", "translation": "猫", "sentence": "The cat is sleeping on the sofa."}]。如果无法识别，请返回空数组 []。`;
-                
-                // *** 适配Gemini代理的请求体 ***
-                const payload = {
-                    imageDataUrl: imageDataUrl,
-                    promptText: promptText
-                };
-
-                try {
-                    const response = await fetch(apiUrl, { 
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(`API 请求失败: ${errorData.error?.message || JSON.stringify(errorData)}`);
-                    }
-
-                    const data = await response.json();
-                    
-                    // *** 适配Gemini代理的响应结构 ***
-                    if (!data.content) {
-                        throw new Error('API响应中缺少预期的 "content" 字段。');
-                    }
-                    
-                    const content = data.content;
-                    const wordData = extractJson(content);
-                    
-                    if (!wordData) {
-                         throw new Error('无法从AI的响应中提取出有效的JSON数据。原始文本: ' + content);
-                    }
-                    
-                    displayResults(wordData);
-
-                } catch (error) {
-                    displayError(`${error.message}`);
-                    console.error('详细错误:', error);
-                } finally {
-                    loader.classList.add('hidden');
-                }
-            }
-
-            function displayResults(data) {
-                if (!Array.isArray(data) || data.length === 0) {
-                    displayError('未能在图片中识别出任何物品，或者API返回了空结果。');
-                    return;
-                }
-                data.forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = 'card p-6 flex flex-col';
-                    card.innerHTML = `
+          </div>
+          
+          <div className="space-y-4 pb-12">
+            <h3 className="text-gray-500 font-medium pl-2">推荐书单 ({filteredBooks.length} 本)</h3>
+            {filteredBooks.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 bg-white rounded-xl border border-dashed border-gray-200">
+                <Book size={48} className="mx-auto mb-3 opacity-20" />
+                <p>该段位暂无推荐，试着调整一下滑块？</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {filteredBooks.map(book => (
+                  <div key={book.id} className="bg-white p-5 rounded-xl border border-gray-100 hover:shadow-md transition-shadow flex gap-5 items-start">
+                    <div className="w-16 h-20 bg-gray-100 rounded-lg flex items-center justify-center text-3xl shadow-inner flex-shrink-0">
+                      {book.cover}
+                    </div>
+                    <div className="flex-grow">
+                      <div className="flex justify-between items-start">
                         <div>
-                            <h3 class="text-2xl font-bold text-indigo-600">${item.word || 'N/A'}</h3>
-                            <p class="text-gray-500 text-lg my-1">[${item.phonetic || 'N/A'}]</p>
-                            <p class="text-gray-800 font-semibold text-lg">${item.translation || 'N/A'}</p>
+                          <h4 className="font-bold text-lg text-gray-800">{book.title}</h4>
+                          <p className="text-sm text-gray-500 mb-2">{book.author}</p>
                         </div>
-                        <div class="border-t border-gray-100 my-4"></div>
-                        <p class="text-gray-600 italic">"${item.sentence || 'No example available.'}"</p>
-                    `;
-                    wordCardsContainer.appendChild(card);
-                });
-            }
-            
-            function displayError(message) {
-                errorMessage.textContent = message;
-                errorMessage.classList.remove('hidden');
-            }
+                        <span className={`text-xs font-bold px-2 py-1 rounded ${book.level > vocabLevel ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                          {book.level} 词
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed mb-3">{book.desc}</p>
+                      <div className="flex gap-2">
+                        {book.tags.map(tag => (
+                          <span key={tag} className="text-xs bg-gray-50 text-gray-500 px-2 py-0.5 rounded border border-gray-100">{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
-            function clearResults() {
-                errorMessage.classList.add('hidden');
-                wordCardsContainer.innerHTML = '';
-            }
-        });
-    </script>
-</body>
-</html>
+// ==========================================
+// 主应用容器 (Main App)
+// ==========================================
+
+export default function EnglishMasterApp() {
+  const [currentModule, setCurrentModule] = useState('home'); // home | vocab | reading
+  
+  // 状态提升：保持阅读助手的数据状态，避免切换模块后数据丢失
+  const [analyzerState, setAnalyzerState] = useState({
+    text: '',
+    result: null
+  });
+
+  // 更新阅读助手的辅助函数
+  const updateAnalyzerState = (text, result) => {
+    setAnalyzerState(prev => ({ ...prev, ...(text !== undefined && { text }), ...(result !== undefined && { result }) }));
+  };
+  
+  // 为了传递给子组件更友好的接口
+  const analyzerStateProps = {
+    text: analyzerState.text,
+    setText: (t) => updateAnalyzerState(t, undefined),
+    result: analyzerState.result,
+    setResult: (r) => updateAnalyzerState(undefined, r)
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
+      {/* Global Header */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div 
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setCurrentModule('home')}
+          >
+            <GraduationCap className="text-indigo-600" size={28} />
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+              English Master
+            </span>
+          </div>
+          {currentModule !== 'home' && (
+            <div className="text-sm text-gray-400 font-medium">
+              {currentModule === 'vocab' ? '词汇挑战' : '阅读助手'}
+            </div>
+          )}
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
+      <div className="pt-6 pb-12">
+        {currentModule === 'home' && (
+          <div className="max-w-4xl mx-auto px-4 animate-in fade-in zoom-in duration-300">
+            <div className="text-center mb-12 mt-8">
+              <h1 className="text-4xl font-extrabold text-gray-900 mb-4">
+                你的英语能力，<br className="md:hidden" />到底处于什么段位？
+              </h1>
+              <p className="text-lg text-gray-500 max-w-2xl mx-auto">
+                这里没有枯燥的试卷。我们用 AI 帮你精准定位词汇量，并推荐刚好适合你的原版读物。
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Card 1: Vocab */}
+              <div 
+                onClick={() => setCurrentModule('vocab')}
+                className="group relative bg-white rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer border border-transparent hover:border-blue-100 overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-10 -mt-10 group-hover:scale-110 transition-transform"></div>
+                <div className="relative z-10">
+                  <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                    <Brain size={28} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">词汇量挑战</h3>
+                  <p className="text-gray-500 mb-6 leading-relaxed">
+                    只要 2 分钟，通过 AI 自适应算法测出你的真实词汇量，并获取详细的段位报告。
+                  </p>
+                  <div className="flex items-center text-blue-600 font-bold group-hover:translate-x-1 transition-transform">
+                    开始测试 <ChevronRight size={18} className="ml-1" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Reading */}
+              <div 
+                onClick={() => setCurrentModule('reading')}
+                className="group relative bg-white rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer border border-transparent hover:border-indigo-100 overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -mr-10 -mt-10 group-hover:scale-110 transition-transform"></div>
+                <div className="relative z-10">
+                  <div className="w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                    <BookOpen size={28} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">智能阅读助手</h3>
+                  <p className="text-gray-500 mb-6 leading-relaxed">
+                    读不懂原版书？复制文本，AI 帮你分析生词率，或者根据你的水平推荐 "i+1" 的完美读物。
+                  </p>
+                  <div className="flex items-center text-indigo-600 font-bold group-hover:translate-x-1 transition-transform">
+                    探索阅读 <ChevronRight size={18} className="ml-1" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-16 text-center">
+              <p className="text-sm text-gray-400 font-medium tracking-wide uppercase">Powered by COCA Corpus & React</p>
+            </div>
+          </div>
+        )}
+
+        {currentModule === 'vocab' && (
+          <VocabTestModule onBack={() => setCurrentModule('home')} />
+        )}
+
+        {currentModule === 'reading' && (
+          <GradedReadingModule 
+            onBack={() => setCurrentModule('home')} 
+            analyzerState={analyzerStateProps}
+            setAnalyzerState={updateAnalyzerState}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
